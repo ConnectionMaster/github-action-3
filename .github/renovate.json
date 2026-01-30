@@ -3,39 +3,107 @@
   "extends": ["github>renovatebot/.github", ":pinDependencies"],
   "packageRules": [
     {
-      "description": "Automerge Renovate updates",
-      "packageNames": ["renovate/renovate"],
-      "updateTypes": ["major", "minor", "patch"],
-      "semanticCommitType": "fix"
+      "description": "Always group updates to the Renovate Docker image",
+      "groupName": "renovate",
+      "matchPackageNames": ["ghcr.io/renovatebot/renovate"]
     },
     {
-      "description": "Update references in markdown files weekly",
-      "matchPaths": [".md"],
+      "description": "Update references in Markdown files weekly",
+      "matchFileNames": ["**/*.md"],
       "extends": ["schedule:weekly"],
       "automerge": true,
-      "stabilityDays": 0,
+      "minimumReleaseAge": null,
       "separateMajorMinor": false,
       "commitMessageTopic": "references to {{{depName}}}",
       "semanticCommitType": "docs",
       "semanticCommitScope": null,
       "additionalBranchPrefix": "docs-"
-    }
-  ],
-  "regexManagers": [
-    {
-      "fileMatch": ["^src/docker\\.ts$"],
-      "matchStrings": [
-        "// renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>.+?)(?: versioning=(?<versioning>[a-z-]+?))?\\s+readonly\\s+tag\\s+=\\s+'(?<currentValue>.+?)';"
-      ],
-      "versioningTemplate": "{{#if versioning}}{{versioning}}{{else}}semver{{/if}}"
     },
     {
-      "fileMatch": ["^README\\.md$"],
+      "description": "Always group major updates to the Renovate Docker image (docs and code)",
+      "groupName": "renovate-major",
+      "matchUpdateTypes": ["major"],
+      "additionalBranchPrefix": "",
+      "matchPackageNames": ["ghcr.io/renovatebot/renovate"]
+    },
+    {
+      "description": "Use build semantic type for some deps",
+      "matchPackageNames": ["@vercel/ncc", "typescript"],
+      "semanticCommitType": "build"
+    },
+    {
+      "description": "Use `build` semantic commit scope for lockfile maintenance",
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "semanticCommitType": "build"
+    },
+    {
+      "description": "Use ci semantic type for some deps",
+      "matchFileNames": [".github/workflows/**"],
+      "semanticCommitType": "ci"
+    },
+    {
+      "description": "Don't require approval for renovate",
+      "matchPackageNames": [
+        "ghcr.io/renovatebot/renovate",
+        "renovatebot/github-action"
+      ],
+      "dependencyDashboardApproval": false
+    },
+    {
+      "description": "Don't pin renovate updates",
+      "matchPackageNames": ["ghcr.io/renovatebot/renovate"],
+      "matchFileNames": [
+        "action.yml",
+        "src/docker.ts",
+        ".github/workflows/build.yml"
+      ],
+      "pinDigests": false
+    },
+    {
+      "description": "Use feat! semantic type for renovate major",
+      "matchPackageNames": ["ghcr.io/renovatebot/renovate"],
+      "matchFileNames": [
+        "action.yml",
+        "src/docker.ts",
+        ".github/workflows/build.yml"
+      ],
+      "matchUpdateTypes": ["major"],
+      "commitMessagePrefix": "feat(deps)!:",
+      "additionalBranchPrefix": "renovate-major"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["README.md"],
       "matchStrings": [
         "uses: renovatebot/github-action@(?<currentValue>[^\\s]+)"
       ],
       "depNameTemplate": "renovatebot/github-action",
       "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["README.md"],
+      "matchStrings": ["renovate-version: (?<currentValue>[^\\s]+)"],
+      "depNameTemplate": "ghcr.io/renovatebot/renovate",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "description": "Update renovate version in action.yml",
+      "customType": "regex",
+      "managerFilePatterns": ["action.yml"],
+      "matchStrings": ["default: '(?<currentValue>[^\\s]+)' # renovate"],
+      "depNameTemplate": "ghcr.io/renovatebot/renovate",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "description": "Update renovate version in src/docker.ts",
+      "customType": "regex",
+      "managerFilePatterns": ["src/docker.ts"],
+      "matchStrings": ["version = '(?<currentValue>[^\\s]+)'; // renovate"],
+      "depNameTemplate": "ghcr.io/renovatebot/renovate",
+      "datasourceTemplate": "docker"
     }
   ]
 }

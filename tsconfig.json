@@ -1,12 +1,16 @@
 {
+  "extends": [
+    "@tsconfig/strictest/tsconfig.json",
+    "@tsconfig/node20/tsconfig.json"
+  ],
   "compilerOptions": {
-    "target": "es2020",
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
     "allowJs": true,
-    "outDir": "dist"
-  }
+    "allowSyntheticDefaultImports": true,
+    "outDir": "dist",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noImplicitAny": false,
+    "noPropertyAccessFromIndexSignature": false /* makes code more complex */
+  },
+  "exclude": ["node_modules/", "**/__mocks__/*", "dist/", "coverage/", "html/"]
 }

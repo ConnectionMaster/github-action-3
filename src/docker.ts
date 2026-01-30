@@ -1,16 +1,31 @@
-class Docker {
-  readonly repository = 'renovate/renovate';
-  // renovate: datasource=docker depName=renovate/renovate versioning=docker
-  readonly tag = '31.81.3-slim';
-  readonly tagSuffix = '-slim';
+import type { Input } from './input';
+import { warning } from '@actions/core';
+
+export class Docker {
+  private static readonly image = 'ghcr.io/renovatebot/renovate';
+  private static readonly version = '42'; // renovate
+
+  private readonly dockerImage: string;
+  private readonly fullTag: string;
+
+  constructor(input: Input) {
+    let image = input.getDockerImage();
+    let version = input.getVersion();
+
+    if (!image) {
+      warning(`No Docker image specified, using ${Docker.image}`);
+      image = Docker.image;
+    }
+    if (!version) {
+      warning(`No Docker version specified, using ${Docker.version}`);
+      version = Docker.version;
+    }
+
+    this.dockerImage = image;
+    this.fullTag = version;
+  }
 
   image(): string {
-    return `${this.repository}:${this.tag}`;
-  }
-
-  version(): string {
-    return this.tag.replace(this.tagSuffix, '');
+    return `${this.dockerImage}:${this.fullTag}`;
   }
 }
-
-export default Docker;

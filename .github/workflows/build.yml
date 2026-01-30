@@ -3,59 +3,87 @@ name: Build
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  RENOVATE_VERSION: 42.95.1 # renovate: datasource=docker depName=renovate packageName=ghcr.io/renovatebot/renovate
+
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          show-progress: false
+
+      - name: 📥 Setup Node.js
+        uses: ./.github/actions/setup-node
+        with:
+          save-cache: true
+
   commitlint:
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'pull_request' || github.repository_owner != github.event.pull_request.head.repo.owner.login }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579 # renovate: tag=v2.4.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          show-progress: false
+          filter: blob:none # we don't need all blobs, only the full tree
+
       - name: Lint commit messages
-        uses: wagoid/commitlint-github-action@296247dfa6a133767fe0d64d08fb66326047b680 # renovate: tag=v4.1.9
+        uses: wagoid/commitlint-github-action@b948419dd99f3fd78a6548d48f94e3df7f6bf3ed # v6.2.1
         continue-on-error: true
 
   lint:
+    needs:
+      - prepare
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'pull_request' || github.repository_owner != github.event.pull_request.head.repo.owner.login }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579 # renovate: tag=v2.4.0
-      - name: Setup node
-        uses: actions/setup-node@1f8c6b94b26d0feae1e387ca63ccbdc44d27b561 # renovate: tag=v2.5.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          node-version: '12.x'
-          cache: 'yarn'
+          show-progress: false
 
-      - name: Install project
-        run: yarn install --frozen-lockfile
+      - name: 📥 Setup Node.js
+        uses: ./.github/actions/setup-node
+
       - name: Lint
-        run: yarn lint
+        run: pnpm lint
 
   e2e:
+    needs:
+      - prepare
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'pull_request' || github.repository_owner != github.event.pull_request.head.repo.owner.login }}
 
     strategy:
       fail-fast: false
       matrix:
-        configurationFile: [example/renovate-config.js, example/renovate.json]
+        configurationFile:
+          - example/renovate-config.js
+          - example/renovate-config.json
     steps:
       - name: Checkout
-        uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579 # renovate: tag=v2.4.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          show-progress: false
 
-      - name: Install project
-        run: yarn install --frozen-lockfile
+      - name: 📥 Setup Node.js
+        uses: ./.github/actions/setup-node
+
       - name: Build
-        run: yarn build
+        run: pnpm build
 
       - name: Configure renovate token
         run: |
@@ -75,65 +103,80 @@ jobs:
         with:
           configurationFile: ${{ matrix.configurationFile }}
 
-  build:
-    needs: [lint, commitlint, e2e]
+      - name: Renovate test with entrypoint
+        uses: ./
+        env:
+          LOG_LEVEL: debug
+        with:
+          configurationFile: ${{ matrix.configurationFile }}
+          renovate-version: ${{ env.RENOVATE_VERSION }}
+          docker-cmd-file: example/entrypoint.sh
+          docker-user: root
+
+  renovate-config-validator:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: ghcr.io/renovatebot/renovate:42.95.1@sha256:af45fc43af24a3bbd9cc55ea6ac189d3910c988e82fa9acb93a5bb32d9f1bde5
+      # github hosted runners are running as `1001:127` (ubuntu:docker)
+      options: -u 1001:0 --group-add 1000 --group-add 12021 --group-add 127
+
     steps:
-      - run: echo 'dummy'
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          show-progress: false
+
+      - name: Validate Renovate configuration
+        working-directory: example
+        run: |
+          renovate-config-validator renovate-config.js renovate-config.json
 
   release:
-    needs: [build]
+    needs:
+      - lint
+      - commitlint
+      - e2e
+      - renovate-config-validator
     runs-on: ubuntu-latest
-    if: |
-      startsWith(github.event.commits[0].message,
-          'fix(deps): update renovate/renovate docker tag ')
-      && github.ref == 'refs/heads/main'
     steps:
-      - name: Checkout
-        uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579 # renovate: tag=v2.4.0
-        with:
-          fetch-depth: 0
-          ref: 'release'
-      - name: Fetch tags
-        run: git fetch --tags
       - name: Setup Git user
+        shell: bash
         run: |
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - name: Merge main
-        run: |
-          git merge -m 'chore(release): merge main (${{ github.sha }})' ${{ github.sha }}
-      - name: Setup node
-        uses: actions/setup-node@1f8c6b94b26d0feae1e387ca63ccbdc44d27b561 # renovate: tag=v2.5.1
-        with:
-          node-version: '12.x'
-      - name: Install project
-        run: yarn install --frozen-lockfile --ignore-scripts
-      - name: Get version
-        id: release
-        run: yarn release:version
-      - name: Release
-        run: yarn release -- "${{ steps.release.outputs.version }}"
-      - name: Get changelog section
-        id: changelog
-        run: |
-          changelog="$(git show --unified=0 CHANGELOG.md \
-              | tail +12 \
-              | sed -e 's/^\+//' \
-              | sed -z 's/\n/%0A/g;s/\r/%0D/g')"
-          echo "::set-output name=changelog::${changelog}"
-      - name: Publish release
-        run: git push --follow-tags
-      - name: Publish GitHub release
-        uses: actions/create-release@0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e # renovate: tag=v1.1.4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ steps.release.outputs.version }}
-          release_name: v${{ steps.release.outputs.version }}
-          body: |
-            *See the the [changelog](
-              https://github.com/${{ github.repository }}/blob/release/CHANGELOG.md
-            ) for changes in all releases.*
+          git config --global core.autocrlf false
+          git config --global core.symlinks true
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-            ${{ steps.changelog.outputs.changelog }}
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0 # required for semantic release
+          ref: 'release'
+          show-progress: false
+          filter: blob:none # we don't need all blobs, only the full tree
+
+      - name: fetch pr
+        if: ${{github.event_name == 'pull_request'}}
+        run: git fetch origin +${{ github.sha }}:${{ github.ref }}
+
+      - name: Merge main
+        id: merge
+        run: |
+          git merge --no-ff -Xtheirs -m 'skip: merge (${{ github.sha }}) [skip release]' ${{ github.sha }}
+          commit=$(git rev-parse HEAD)
+
+      - name: 📥 Setup Node.js
+        uses: ./.github/actions/setup-node
+
+      - name: Push release branch
+        run: git push origin release:release
+        if: ${{ github.ref_name == github.event.repository.default_branch }}
+
+      - name: Release
+        run: |
+          # override for semantic-release
+          export GITHUB_REF=refs/heads/release GITHUB_SHA=${{ steps.merge.outputs.commit }}
+          pnpm release
+        if: ${{ github.ref_name == github.event.repository.default_branch }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

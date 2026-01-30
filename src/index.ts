@@ -1,17 +1,21 @@
-import * as core from '@actions/core';
-import Input from './input';
-import Renovate from './renovate';
+import { group, notice, setFailed } from '@actions/core';
+import { Input } from './input';
+import { Renovate } from './renovate';
 
 async function run(): Promise<void> {
   try {
     const input = new Input();
     const renovate = new Renovate(input);
 
+    await group('Check Renovate version', async () => {
+      const version = await renovate.runDockerContainerForVersion();
+      notice(version, { title: 'Renovate CLI version' });
+    });
+
     await renovate.runDockerContainer();
   } catch (error) {
     console.error(error);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    core.setFailed(error.message);
+    setFailed(error as Error);
   }
 }
 
