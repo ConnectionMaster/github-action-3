@@ -173,10 +173,14 @@ The name of the secret can be anything as long as it matches the argument given 
 Fine-grained Personal Access Tokens are now supported, as GitHub has [implemented GraphQL API support for them](https://github.com/github/roadmap/issues/622).
 However, some permission gaps may remain (for example, around `Checks` access), so a classic token is still the safer default if you run into authentication or automerge limitations.
 
-Note that the [`GITHUB_TOKEN`](https://help.github.com/en/actions/configuring-and-managing-workflows/authenticating-with-the-github_token#permissions-for-the-github_token) secret can't be used for authenticating Renovate because it has too restrictive permissions.
-In particular, using the `GITHUB_TOKEN` to create a new `Pull Request` from more types of Github Workflows results in `Pull Requests` that [do not trigger your `Pull Request` and `Push` CI events](https://docs.github.com/en/actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow).
-
 If you want to use the `github-actions` manager, you must setup a [special token](#special-token-requirements-when-using-the-github-actions-manager) with some requirements.
+
+> [!NOTE]
+> [`GITHUB_TOKEN`](https://help.github.com/en/actions/configuring-and-managing-workflows/authenticating-with-the-github_token#permissions-for-the-github_token)
+> can be also used; however, workflows run on RenovateBot's PRs will need to be [manually approved](https://github.blog/changelog/2026-06-11-bot-created-pull-requests-can-run-workflows-if-approved/).
+>
+> Additionally, ["Allow GitHub Actions to create and approve pull requests"](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository#preventing-github-actions-from-creating-or-approving-pull-requests)
+> needs to be enabled on the repository or organisation level.
 
 ### `renovate-image`
 
@@ -223,7 +227,7 @@ The Renovate version to use.
 If omitted the action will use the [`default version`](./action.yml#L28) Docker tag.
 Check [the available tags on Docker Hub](https://hub.docker.com/r/renovate/renovate/tags).
 
-This sample will use `ghcr.io/renovatebot/renovate:43.272.4` image.
+This sample will use `ghcr.io/renovatebot/renovate:43.277.1` image.
 
 ```yml
 ....
@@ -236,7 +240,7 @@ jobs:
       - name: Self-hosted Renovate
         uses: renovatebot/github-action@v46.1.20
         with:
-          renovate-version: 43.272.4
+          renovate-version: 43.277.1
           token: ${{ secrets.RENOVATE_TOKEN }}
 ```
 
@@ -500,7 +504,7 @@ jobs:
         with:
           configurationFile: renovate.json5
           token: ${{ secrets.RENOVATE_TOKEN }}
-          renovate-version: 43.272.4
+          renovate-version: 43.277.1
         env:
           # This enables the cache -- if this is set, it's not necessary to add it to renovate.json.
           RENOVATE_REPOSITORY_CACHE: ${{ github.event.inputs.repoCache || 'enabled' }}
